@@ -1,4 +1,6 @@
-FlightTimer Forever 2.0.1
+FlightTimer Forever 2.0.2
+
+2.0.2: Corrects the TOC interface to 16001 for the WoW Forever 1.60.1 client.
 
 Flight timer with bundled Classic timings and learning for new Forever routes.
 

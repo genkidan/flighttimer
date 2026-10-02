@@ -1,4 +1,6 @@
-FlightTimer Forever 2.0.1
+FlightTimer Forever 2.0.2
+
+2.0.2 : Corrige l'interface du TOC à 16001 pour le client WoW Forever 1.60.1.
 
 OBJECTIF
 - Conserver les temps Classic de FlightData.lua : ils sont prioritaires sur

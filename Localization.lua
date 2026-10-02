@@ -101,7 +101,7 @@ local extra = locale == "frFR" and {
     ROUTE_COUNT = "%d trajet(s) Forever appris.",
     ROUTE_ENTRY = "%s -> %s : %.1fs (%d mesures)",
     FOREVER_RESET = "Nouveaux trajets Forever effacés. Base Classic conservée.",
-    LOADED = "v2.0.1 Forever chargé — apprentissage des nouveaux trajets uniquement.",
+    LOADED = "v2.0.2 Forever chargé — apprentissage des nouveaux trajets uniquement.",
     HELP = "Commandes : /ft lock, unlock, reset, historyreset, test, hide, show, forever, newroutes, foreverreset",
 } or {
     MOVE_TOOLTIP = "Hold the left mouse button to move",
@@ -118,7 +118,7 @@ local extra = locale == "frFR" and {
     ROUTE_COUNT = "%d learned Forever route(s).",
     ROUTE_ENTRY = "%s -> %s: %.1fs (%d samples)",
     FOREVER_RESET = "Learned Forever routes cleared. Classic database preserved.",
-    LOADED = "v2.0.1 Forever loaded — learning new routes only.",
+    LOADED = "v2.0.2 Forever loaded — learning new routes only.",
     HELP = "Commands: /ft lock, unlock, reset, historyreset, test, hide, show, forever, newroutes, foreverreset",
 }
 for key, value in pairs(extra) do L[key] = value end

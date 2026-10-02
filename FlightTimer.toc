@@ -1,8 +1,8 @@
-## Interface: 120105
+## Interface: 16001
 ## Title: FlightTimer
 ## Notes: Elegant flight path timer for WoW Forever - apprend uniquement les nouveaux trajets de vol.
 ## Author: Genkidan
-## Version: 2.0.1-Forever
+## Version: 2.0.2-Forever
 ## SavedVariables: FlightTimerDB
 
 Localization.lua
