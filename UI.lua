@@ -132,7 +132,7 @@ function FT:CreateUI()
             FT.db.profile.selectedSound = button.sound.key
             PreviewSound(button.sound)
             RefreshSoundMenu()
-            Print(string.format(L.SOUND_SELECTED, button.sound.name))
+            FT:Print(string.format(L.SOUND_SELECTED, button.sound.name))
         end)
         soundMenu.buttons[i] = b
     end
@@ -148,7 +148,7 @@ function FT:CreateUI()
         end
         FT.db.profile.soundEnabled = not (FT.db.profile.soundEnabled ~= false)
         RefreshSoundButton()
-        Print(FT.db.profile.soundEnabled and L.SOUND_ENABLED_MSG or L.SOUND_DISABLED_MSG)
+        FT:Print(FT.db.profile.soundEnabled and L.SOUND_ENABLED_MSG or L.SOUND_DISABLED_MSG)
     end)
     soundButton:SetScript("OnEnter", function(button)
         GameTooltip:SetOwner(button, "ANCHOR_TOP")
@@ -249,7 +249,7 @@ function FT:CreateUI()
         if not FT.db.profile.locked then
             GameTooltip:SetOwner(frame, "ANCHOR_TOP")
             GameTooltip:SetText("FlightTimer", 1, 0.82, 0.38)
-            GameTooltip:AddLine("Clic gauche maintenu : déplacer", 0.85, 0.85, 0.85)
+            GameTooltip:AddLine(L.MOVE_TOOLTIP, 0.85, 0.85, 0.85)
             GameTooltip:Show()
         end
     end)
@@ -272,7 +272,23 @@ function FT:CreateUI()
     self.RefreshLayout = RefreshLayout
 
     RefreshLayout()
-    f:Hide()
+    if self.db.profile.alwaysShow then
+        self:ShowIdleUI()
+    else
+        f:Hide()
+    end
+end
+
+function FT:ShowIdleUI()
+    self.routeText:SetText("FlightTimer")
+    self.timerText:SetText(L.READY)
+    self.arrivalText:SetText(L.IDLE)
+    self.bar:SetMinMaxValues(0, 1)
+    self.bar:SetValue(0)
+    self:SetCancelState(false, nil, true, true)
+    self.cancelInfoText:SetText("")
+    if self.RefreshLayout then self.RefreshLayout() end
+    self.frame:Show()
 end
 
 function FT:SetCancelState(requested, nextStop, isDirect, hidden)
@@ -404,19 +420,15 @@ function FT:UpdateFlightUI(elapsed, estimate, learned)
         self.bar:SetMinMaxValues(0, 1)
         self.bar:SetValue(0.15 + pulse * 0.7)
         self.timerText:SetText(L.LEARNING .. "  " .. FormatTime(elapsed))
-        self.arrivalText:SetText("Le temps exact sera mémorisé à l’atterrissage.")
+        self.arrivalText:SetText(L.LEARNING_DETAIL)
     end
 end
 
-function FT:FinishFlightUI(actualDuration, earlyLanding)
+function FT:FinishFlightUI(actualDuration, status)
     if not self.frame then return end
     self.bar:SetStatusBarColor(0.25, 0.72, 0.32, 1)
     self.timerText:SetText(FormatTime(actualDuration or 0))
-    if earlyLanding then
-        self.arrivalText:SetText(L.EARLY_LANDING_DONE)
-    else
-        self.arrivalText:SetText("Trajet mémorisé")
-    end
+    self.arrivalText:SetText(status or L.FLIGHT_DONE)
     self.cancelInfoText:SetText("")
     self.cancelButton:Hide()
     C_Timer.After(3, function()

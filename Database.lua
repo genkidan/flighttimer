@@ -51,16 +51,15 @@ function FT:GetRoute(fromName, toName)
 end
 
 function FT:GetRouteEstimate(fromName, toName, fromHash, toHash)
-    -- Personal measurements have priority because they match the player's client exactly.
-    local route = self:GetRoute(fromName, toName)
-    if route and route.average and route.average > 0 then
-        return route.average, true, route.samples or 1, "personal"
-    end
-
-    -- Otherwise use the bundled Classic flight-time database.
+    -- Classic timings always take precedence, including over legacy measurements.
     local builtIn = self:GetBuiltInFlightTime(fromHash, toHash)
     if builtIn and builtIn > 0 then
         return builtIn, true, 0, "database"
+    end
+
+    local route = self:GetRoute(fromName, toName)
+    if route and route.average and route.average > 0 then
+        return route.average, true, route.samples or 1, "personal"
     end
 
     return nil, false, 0, "learning"
@@ -108,6 +107,7 @@ end
 -- bundled Classic database. Existing Classic routes are never re-timed.
 function FT:RecordForeverNewRoute(fromName, toName, duration, distance, fromHash, toHash, routeCount)
     if not self.db or not fromName or not toName or not duration or duration < 3 then return false, "invalid" end
+    if not fromHash or not toHash then return false, "unidentified" end
     if self:IsBundledRoute(fromHash, toHash) then
         return false, "existing"
     end
@@ -133,6 +133,20 @@ function FT:RecordForeverNewRoute(fromName, toName, duration, distance, fromHash
     -- immediately use the learned time on the next flight.
     self.db.routes[key] = route
     return true, "new"
+end
+
+function FT:ResetForeverRoutes()
+    for key in pairs(self.db.forever.newRoutes) do
+        self.db.routes[key] = nil
+    end
+    self.db.forever.newRoutes = {}
+end
+
+function FT:ResetHistory()
+    self.db.routes = {}
+    self.db.forever.newRoutes = {}
+    self.db.calibration.secondsPerMapUnit = 235
+    self.db.calibration.samples = 0
 end
 
 function FT:GetForeverNewRouteCount()

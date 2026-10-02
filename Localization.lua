@@ -86,4 +86,40 @@ if locale ~= "frFR" then
     }
 end
 
+local extra = locale == "frFR" and {
+    MOVE_TOOLTIP = "Clic gauche maintenu : déplacer",
+    READY = "Prêt", IDLE = "La barre s’activera automatiquement au prochain vol.",
+    LEARNING_DETAIL = "Le temps d’un vol complet sera mémorisé à l’atterrissage.",
+    FLIGHT_DONE = "Vol terminé — durée non enregistrée",
+    TEST_DONE = "Démonstration terminée — aucune donnée enregistrée",
+    TEST_BUSY = "Impossible de lancer le test pendant un vol ou une démonstration.",
+    EARLY_NOT_SAVED = "Arrêt anticipé — durée non enregistrée",
+    ROUTE_SAVED = "Trajet Forever mémorisé",
+    CLASSIC_DONE = "Trajet Classic terminé — base conservée",
+    NEW_ROUTE = "Trajet Forever appris : %s -> %s = %.1fs",
+    CLASSIC_ROUTE = "Trajet Classic connu : %s -> %s (aucun recalcul)",
+    ROUTE_COUNT = "%d trajet(s) Forever appris.",
+    ROUTE_ENTRY = "%s -> %s : %.1fs (%d mesures)",
+    FOREVER_RESET = "Nouveaux trajets Forever effacés. Base Classic conservée.",
+    LOADED = "v2.0.1 Forever chargé — apprentissage des nouveaux trajets uniquement.",
+    HELP = "Commandes : /ft lock, unlock, reset, historyreset, test, hide, show, forever, newroutes, foreverreset",
+} or {
+    MOVE_TOOLTIP = "Hold the left mouse button to move",
+    READY = "Ready", IDLE = "The timer will start automatically on your next flight.",
+    LEARNING_DETAIL = "Completed flights will be recorded on landing.",
+    FLIGHT_DONE = "Flight finished — duration not recorded",
+    TEST_DONE = "Demo finished — no data recorded",
+    TEST_BUSY = "Cannot start a demo during a flight or another demo.",
+    EARLY_NOT_SAVED = "Early landing — duration not recorded",
+    ROUTE_SAVED = "Forever route recorded",
+    CLASSIC_DONE = "Classic flight finished — database preserved",
+    NEW_ROUTE = "Forever route learned: %s -> %s = %.1fs",
+    CLASSIC_ROUTE = "Known Classic route: %s -> %s (no recalculation)",
+    ROUTE_COUNT = "%d learned Forever route(s).",
+    ROUTE_ENTRY = "%s -> %s: %.1fs (%d samples)",
+    FOREVER_RESET = "Learned Forever routes cleared. Classic database preserved.",
+    LOADED = "v2.0.1 Forever loaded — learning new routes only.",
+    HELP = "Commands: /ft lock, unlock, reset, historyreset, test, hide, show, forever, newroutes, foreverreset",
+}
+for key, value in pairs(extra) do L[key] = value end
 FT.L = L

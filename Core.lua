@@ -9,6 +9,9 @@ local pendingTaxi = nil
 local function Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage("|cffffc44dFlightTimer|r: " .. tostring(msg))
 end
+function FT:Print(msg)
+    Print(msg)
+end
 
 local function UnitIsOnTaxi()
     if UnitOnTaxi then
@@ -43,6 +46,7 @@ local function CaptureTaxiMap()
         nodes = nodes,
         capturedAt = GetTime(),
     }
+    pendingTaxi = nil
 end
 
 local function GetApproxDistance(src, dst)
@@ -125,12 +129,12 @@ local function BuildPendingTaxi(destIndex)
     if not taxiSnapshot or not taxiSnapshot.nodes then return end
     local src = taxiSnapshot.nodes[taxiSnapshot.currentIndex or -1]
     local dst = taxiSnapshot.nodes[destIndex]
-    if not src or not dst or not src.name or not dst.name then return end
+    if not src or not dst or not src.name or not dst.name then pendingTaxi = nil; return end
 
     local distance = GetApproxDistance(src, dst)
     local routeStops, routeCount = CaptureRouteStops(destIndex)
     local nextStop = routeStops and routeStops[1] and routeStops[1].name or dst.name
-    local isDirect = (routeCount and routeCount <= 1) or (nextStop == dst.name)
+    local isDirect = routeCount and routeCount <= 1 or false
 
     pendingTaxi = {
         from = src.name,
@@ -177,7 +181,7 @@ local function BuildRouteTimeline(fromName, fromHash, routeStops, fullEstimate)
         end
 
         if not cumulative or cumulative <= lastCumulative then
-            return nil
+            break
         end
 
         timeline[#timeline + 1] = {
@@ -199,7 +203,7 @@ local function BuildRouteTimeline(fromName, fromHash, routeStops, fullEstimate)
     local finalCumulative = timeline[#timeline] and timeline[#timeline].cumulative
     if fullEstimate and fullEstimate > 0 and finalCumulative and finalCumulative > 0 then
         local scale = fullEstimate / finalCumulative
-        if scale > 0.85 and scale < 1.15 then
+        if #timeline == #routeStops and scale > 0.85 and scale < 1.15 then
             for _, entry in ipairs(timeline) do
                 entry.cumulative = entry.cumulative * scale
                 if entry.segment then entry.segment = entry.segment * scale end
@@ -227,17 +231,31 @@ local function GetCurrentRouteStop(flight, elapsed)
                 return flight.routeStops[entry.index], entry.index, entry.cumulative
             end
         end
-        return flight.routeStops[#flight.routeStops], #flight.routeStops, flight.estimate
+        if #flight.routeTimeline == #flight.routeStops then
+            return flight.routeStops[#flight.routeStops], #flight.routeStops, flight.estimate
+        end
     end
 
-    return flight.routeStops[1], 1, nil
+    -- Without a complete timeline, the next reachable stop is unknown.
+    return nil, nil
 end
 
 local function RefreshNextStop(flight, elapsed, force)
     if not flight or flight.earlyLandingRequested then return end
 
     local stop, index = GetCurrentRouteStop(flight, elapsed)
-    if not stop or not stop.name then return end
+    if not stop or not stop.name then
+        local changed = force or flight.nextStop ~= (flight.routeCount == 1 and flight.to or nil)
+            or flight.currentStopIndex ~= nil or flight.isDirect ~= (flight.routeCount == 1)
+        flight.nextStop = flight.routeCount == 1 and flight.to or nil
+        flight.nextStopHash = nil
+        flight.currentStopIndex = nil
+        flight.isDirect = flight.routeCount == 1
+        if changed and FT.SetCancelState then
+            FT:SetCancelState(false, flight.nextStop, flight.isDirect, false)
+        end
+        return
+    end
 
     local dynamicDirect = (index == #flight.routeStops)
     local changed = force or flight.currentStopIndex ~= index or flight.nextStop ~= stop.name or flight.isDirect ~= dynamicDirect
@@ -257,9 +275,14 @@ local function RecalculateForEarlyLanding(flight)
 
     local elapsed = math.max(0, GetTime() - flight.startTime)
     local stop, stopIndex, stopCumulative = GetCurrentRouteStop(flight, elapsed)
-    local stopName = (stop and stop.name) or flight.nextStop
-    local stopHash = (stop and stop.hash) or flight.nextStopHash
-    if not stopName then return end
+    local stopName = stop and stop.name
+    local stopHash = stop and stop.hash
+    if not stopName then
+        flight.estimate = nil
+        flight.to = L.NEXT_STOP_UNKNOWN
+        FT:SwitchToEarlyLandingUI(flight.from, flight.to, nil, false, "learning", elapsed)
+        return
+    end
 
     local estimate, learned, _, source = FT:GetRouteEstimate(flight.from, stopName, flight.fromHash, stopHash)
     -- Prefer the route timeline because it represents the exact path currently
@@ -289,7 +312,8 @@ end
 
 function FT:RequestEarlyLanding()
     local flight = self.activeFlight
-    if not flight or not UnitIsOnTaxi() then return end
+    if not flight or flight.test or flight.earlyLandingRequested or not UnitIsOnTaxi() then return end
+    RefreshNextStop(flight, GetTime() - flight.startTime, true)
 
     if flight.isDirect then
         if self.SetCancelState then
@@ -318,7 +342,9 @@ function FT:RequestEarlyLanding()
 end
 
 local function StartFlight()
-    if FT.activeFlight then return end
+    if FT.activeFlight and not FT.activeFlight.test then return end
+    if FT.activeFlight then FT.activeFlight = nil end
+    if pendingTaxi and GetTime() - pendingTaxi.selectedAt > 30 then pendingTaxi = nil end
 
     local fromName = pendingTaxi and pendingTaxi.from
     local toName = pendingTaxi and pendingTaxi.to
@@ -338,6 +364,7 @@ local function StartFlight()
         from = fromName,
         to = toName,
         startTime = GetTime(),
+        startEpoch = time(),
         estimate = estimate,
         learned = learned,
         distance = distance,
@@ -352,6 +379,7 @@ local function StartFlight()
         isDirect = pendingTaxi and pendingTaxi.isDirect or false,
         earlyLandingRequested = false,
     }
+    FT.db.activeFlight = FT.activeFlight
 
     RefreshNextStop(FT.activeFlight, 0, true)
     FT:ShowFlightUI(fromName, toName, estimate, learned, source, FT.activeFlight.nextStop, FT.activeFlight.isDirect)
@@ -363,22 +391,27 @@ local function EndFlight()
     if not flight then return end
 
     local duration = math.max(0, GetTime() - flight.startTime)
-    if duration >= 3 then
-        if flight.earlyLandingRequested and flight.earlyLandingTarget then
-            -- Save the real shortened route under the intermediate stop, never under the original destination.
-            FT:RecordForeverNewRoute(flight.from, flight.earlyLandingTarget, duration, nil, flight.fromHash, flight.earlyLandingTargetHash, flight.earlyLandingStopIndex)
+    local status = flight.test and L.TEST_DONE or L.FLIGHT_DONE
+    if duration >= 3 and not flight.test then
+        if flight.earlyLandingRequested then
+            -- The game has not confirmed which node received the player.
+            -- Never associate this duration with a predicted intermediate stop.
+            status = L.EARLY_NOT_SAVED
         elseif not flight.earlyLandingRequested then
             local saved, why = FT:RecordForeverNewRoute(flight.from, flight.to, duration, flight.distance, flight.fromHash, flight.toHash, flight.routeCount)
             if saved then
-                Print(string.format("NOUVEAU trajet Forever appris : %s -> %s = %.1fs", flight.from, flight.to, duration))
+                status = L.ROUTE_SAVED
+                Print(string.format(L.NEW_ROUTE, flight.from, flight.to, duration))
             elseif why == "existing" then
-                Print(string.format("Trajet Classic connu : %s -> %s (aucun recalcul)", flight.from, flight.to))
+                status = L.CLASSIC_DONE
+                Print(string.format(L.CLASSIC_ROUTE, flight.from, flight.to))
             end
         end
     end
 
     FT.activeFlight = nil
-    FT:FinishFlightUI(duration, flight.earlyLandingRequested)
+    FT.db.activeFlight = nil
+    FT:FinishFlightUI(duration, status)
 end
 
 local elapsedAccumulator = 0
@@ -393,7 +426,7 @@ eventFrame:SetScript("OnUpdate", function(_, elapsed)
     RefreshNextStop(f, flown, false)
     FT:UpdateFlightUI(flown, f.estimate, f.learned)
 
-    if flown > 2 and not UnitIsOnTaxi() then
+    if not f.test and flown > 2 and not UnitIsOnTaxi() then
         EndFlight()
     end
 end)
@@ -411,23 +444,37 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
             end)
         end
 
-        Print("v2.0.0 Forever chargé - apprentissage uniquement des NOUVEAUX trajets. " .. L.HELP)
+        Print(L.LOADED .. " " .. L.HELP)
 
     elseif event == "TAXIMAP_OPENED" then
         CaptureTaxiMap()
 
     elseif event == "PLAYER_CONTROL_LOST" then
         C_Timer.After(0.05, function()
-            if UnitIsOnTaxi() then StartFlight() end
+            if UnitIsOnTaxi() then StartFlight() else pendingTaxi = nil end
         end)
 
     elseif event == "PLAYER_CONTROL_GAINED" then
         C_Timer.After(0.05, function()
-            if FT.activeFlight and not UnitIsOnTaxi() then EndFlight() end
+            if FT.activeFlight and not FT.activeFlight.test and not UnitIsOnTaxi() then EndFlight() end
         end)
 
     elseif event == "PLAYER_ENTERING_WORLD" then
-        if FT.activeFlight and not UnitIsOnTaxi() then EndFlight() end
+        if not FT.activeFlight and FT.db and FT.db.activeFlight then
+            local saved = FT.db.activeFlight
+            if UnitIsOnTaxi() and saved.startEpoch then
+                saved.startTime = GetTime() - math.max(0, time() - saved.startEpoch)
+                FT.activeFlight = saved
+                FT:ShowFlightUI(saved.from, saved.to, saved.estimate, saved.learned,
+                    saved.source, saved.nextStop, saved.isDirect)
+                if saved.earlyLandingRequested then
+                    FT:SetCancelState(true, saved.earlyLandingTarget, false, false)
+                end
+            else
+                FT.db.activeFlight = nil
+            end
+        end
+        if FT.activeFlight and not FT.activeFlight.test and not UnitIsOnTaxi() then EndFlight() end
     end
 end)
 
@@ -452,39 +499,29 @@ SlashCmdList.FLIGHTTIMER = function(msg)
         FT:ResetPosition()
         Print(L.RESET)
     elseif msg == "historyreset" then
-        FT.db.routes = {}
-        FT.db.calibration.secondsPerMapUnit = 235
-        FT.db.calibration.samples = 0
+        FT:ResetHistory()
         Print(L.HISTORY_RESET)
     elseif msg == "forever" or msg == "newroutes" then
-        Print(string.format("%d nouveau(x) trajet(s) Forever appris.", FT:GetForeverNewRouteCount()))
+        Print(string.format(L.ROUTE_COUNT, FT:GetForeverNewRouteCount()))
         local store = FT.db.forever and FT.db.forever.newRoutes or {}
         for _, route in pairs(store) do
-            Print(string.format("%s -> %s : %.1fs (%d mesure%s)", route.from, route.to, route.average or 0, route.samples or 0, (route.samples or 0) > 1 and "s" or ""))
+            Print(string.format(L.ROUTE_ENTRY, route.from, route.to, route.average or 0, route.samples or 0))
         end
     elseif msg == "foreverreset" then
-        FT.db.forever.newRoutes = {}
-        -- Do not erase Classic data. Remove only mirrored Forever learned routes.
-        for key, route in pairs(FT.db.routes or {}) do
-            if route and route.fromHash and route.toHash and not FT:IsBundledRoute(route.fromHash, route.toHash) then
-                FT.db.routes[key] = nil
-            end
-        end
-        Print("Nouveaux trajets Forever effacés. Base Classic conservée.")
+        FT:ResetForeverRoutes()
+        Print(L.FOREVER_RESET)
     elseif msg == "hide" then
         FT.db.profile.alwaysShow = false
         if FT.frame and not FT.activeFlight then FT.frame:Hide() end
     elseif msg == "show" then
         FT.db.profile.alwaysShow = true
         FT:CreateUI()
-        FT.routeText:SetText("FlightTimer")
-        FT.timerText:SetText("Prêt")
-        FT.arrivalText:SetText("La barre s’activera automatiquement au prochain fly.")
-        FT.bar:SetMinMaxValues(0, 1)
-        FT.bar:SetValue(0)
-        FT:SetCancelState(false, nil, true, false)
-        FT.frame:Show()
+        if not FT.activeFlight then FT:ShowIdleUI() else FT.frame:Show() end
     elseif msg == "test" then
+        if FT.activeFlight or UnitIsOnTaxi() then
+            Print(L.TEST_BUSY)
+            return
+        end
         FT:CreateUI()
         FT.activeFlight = {
             from = L.TEST_FROM,
@@ -497,8 +534,9 @@ SlashCmdList.FLIGHTTIMER = function(msg)
             isDirect = false,
         }
         FT:ShowFlightUI(L.TEST_FROM, L.TEST_TO, 78, true, "personal", L.TEST_STOP, false)
+        local testFlight = FT.activeFlight
         C_Timer.After(78, function()
-            if FT.activeFlight and FT.activeFlight.test then EndFlight() end
+            if FT.activeFlight == testFlight then EndFlight() end
         end)
     else
         Print(L.HELP)
