@@ -346,6 +346,7 @@ end
 
 function FT:ShowFlightUI(fromName, toName, estimate, learned, source, nextStop, isDirect)
     self:CreateUI()
+    self.displaySource = source
     self:ResetTenSecondAlert()
     self.routeText:SetText(string.format("%s  |cff8c8c8c>|r  %s", fromName or "?", toName or "?"))
     self.bar:SetMinMaxValues(0, math.max(estimate or 1, 1))
@@ -368,6 +369,7 @@ end
 
 function FT:SwitchToEarlyLandingUI(fromName, stopName, estimate, learned, source, elapsed)
     self:CreateUI()
+    self.displaySource = source
     self:ResetTenSecondAlert()
     elapsed = math.max(0, elapsed or 0)
 
@@ -403,7 +405,8 @@ function FT:UpdateFlightUI(elapsed, estimate, learned)
         self.timerText:SetText(FormatTime(remaining) .. "  |cff9a8f7a/ " .. FormatTime(estimate) .. "|r")
 
         local arrivalEpoch = time() + math.floor(remaining + 0.5)
-        self.arrivalText:SetText(string.format("%s%s : %s", learned and "" or "~ ", L.ARRIVAL, date("%H:%M:%S", arrivalEpoch)))
+        local suffix = self.displaySource == "database" and "  |cff8c8c8c(Base Classic)|r" or ""
+        self.arrivalText:SetText(string.format("%s%s : %s%s", learned and "" or "~ ", L.ARRIVAL, date("%H:%M:%S", arrivalEpoch), suffix))
 
         if remaining <= 10 then
             if not self.tenSecondAlertPlayed then
@@ -411,7 +414,7 @@ function FT:UpdateFlightUI(elapsed, estimate, learned)
                 self:PlayTenSecondAlert()
             end
             self.bar:SetStatusBarColor(0.92, 0.34, 0.12, 1)
-            self.arrivalText:SetText("|cffff6b35" .. L.IMMINENT .. "|r  -  " .. date("%H:%M:%S", arrivalEpoch))
+            self.arrivalText:SetText("|cffff6b35" .. L.IMMINENT .. "|r  -  " .. date("%H:%M:%S", arrivalEpoch) .. suffix)
         else
             self.bar:SetStatusBarColor(0.86, 0.57, 0.12, 1)
         end

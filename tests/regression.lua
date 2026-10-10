@@ -100,8 +100,8 @@ assert(clock - flight.startTime == 20)
 SlashCmdList.FLIGHTTIMER("test"); assert(FT.activeFlight == flight)
 SlashCmdList.FLIGHTTIMER("show"); assert(FT.routeText.text:find("N"))
 taxi = false; events.scripts.OnUpdate(events, 1)
-assert(FT:GetRouteEstimate("N", "M") == 20)
-assert(FT.arrivalText.text == FT.L.ROUTE_SAVED and FT.db.activeFlight == nil)
+assert(FT:GetRouteEstimate("N", "M") == nil)
+assert(FT.arrivalText.text == FT.L.FLIGHT_DONE and FT.db.activeFlight == nil)
 FT.db.activeFlight = { startEpoch = time() - 500 }
 event("PLAYER_ENTERING_WORLD"); assert(FT.activeFlight == nil)
 
@@ -136,12 +136,49 @@ taxi = true; event("PLAYER_CONTROL_LOST"); advance(1)
 assert(FT.activeFlight.from == "Origin" and FT.activeFlight.to == "Final")
 assert(not FT.activeFlight.isDirect and FT.activeFlight.nextStop == nil)
 assert(FT.db.activeFlight == FT.activeFlight)
+local fullContext = assert(FT.activeFlight.context)
 advance(20); taxi = false; event("PLAYER_CONTROL_GAINED"); advance(1)
-assert(FT:GetRoute("Origin", "Final").average == 21)
+assert(FT:GetRoute("Origin", "Final", fullContext).average == 21)
+
+-- A complete scoped flight also keeps its identity when restored after reload.
+taxi = true
+FT.db.activeFlight = { from = "Origin", to = "Final", fromHash = "a", toHash = "b",
+    context = fullContext, startEpoch = time() - 39, estimate = 21 }
+event("PLAYER_ENTERING_WORLD")
+taxi = false; events.scripts.OnUpdate(events, 1)
+assert(FT:GetRoute("Origin", "Final", fullContext).average == 30)
+
+-- Actual capture isolates another faction, locale and build, and refuses an
+-- incompletely identified path instead of using a name-only legacy estimate.
+local function capturedContext()
+    event("TAXIMAP_OPENED"); takeTaxiHook(3)
+    taxi = true; event("PLAYER_CONTROL_LOST"); advance(1)
+    local context = FT.activeFlight.context
+    assert(FT.activeFlight.estimate == nil)
+    FT.activeFlight = nil; FT.db.activeFlight = nil; taxi = false
+    return context
+end
+UnitFactionGroup = function() return "Alliance" end
+assert(capturedContext() ~= fullContext)
+UnitFactionGroup = function() return "Horde" end
+locale = "enUS"; assert(capturedContext() ~= fullContext); locale = "frFR"
+GetBuildInfo = function() return "1.60.1", "newbuild" end
+assert(capturedContext() ~= fullContext); GetBuildInfo = nil
+GetNumRoutes = function() return 3 end
+assert(capturedContext() == nil)
+GetNumRoutes = function() return 2 end
+assert(FT:GetRoute("Origin", "Final") == nil)
+assert(FT:GetRoute("Origin", "Final", fullContext).routeStops[1].name == "Middle")
+
+-- Identical names on another path/faction/build must not share measurements.
+assert(FT:GetRouteEstimate("Origin", "Final", nil, nil, fullContext .. ":other") == nil)
+assert(FT:RecordForeverNewRoute("Origin", "Final", 80, nil, "a", "b", 1, fullContext .. ":other"))
+assert(FT:GetRoute("Origin", "Final", fullContext).average == 30)
 
 -- Known first hop survives a missing later hop, then becomes unknown.
-FT:RecordForeverNewRoute("Origin", "Middle", 10, nil, FT:GetNodeHash(0.12), FT:GetNodeHash(0.22))
-FT.db.routes[FT:RouteKey("Origin", "Final")] = nil
+local firstContext = fullContext:match("^(.*):[^:]+$")
+FT:RecordForeverNewRoute("Origin", "Middle", 10, nil, FT:GetNodeHash(0.12), FT:GetNodeHash(0.22), 1, firstContext)
+FT.db.routes[FT:RouteKey("Origin", "Final", fullContext)] = nil
 event("TAXIMAP_OPENED"); takeTaxiHook(3)
 taxi = true; event("PLAYER_CONTROL_LOST"); advance(1)
 assert(#FT.activeFlight.routeTimeline == 1)
@@ -152,8 +189,39 @@ FT:RequestEarlyLanding()
 taxi = false; event("PLAYER_CONTROL_GAINED"); advance(1)
 assert(FT:GetRoute("Origin", "Final") == nil)
 
+-- Explicit API refusal must not flag an early landing or change the target.
+taxi = true
+FT.activeFlight = { from = "N", to = "End", startTime = clock,
+    routeCount = 2, routeStops = { { name = "Middle" }, { name = "End" } } }
+TaxiRequestEarlyLanding = function() return false end
+FT:RequestEarlyLanding()
+assert(not FT.activeFlight.earlyLandingRequested and FT.activeFlight.to == "End")
+FT.activeFlight = nil; taxi = false
+
+-- The Classic source stays visible through normal updates and imminent arrival.
+FT:ShowFlightUI("A", "B", 30, true, "database")
+FT:UpdateFlightUI(1, 30, true)
+assert(FT.arrivalText.text:find("Base Classic", 1, true))
+FT:UpdateFlightUI(25, 30, true)
+assert(FT.arrivalText.text:find("Base Classic", 1, true))
+
 -- All additional messages exist in English too.
 local french = FT.L
 locale = "enUS"; assert(loadfile("Localization.lua"))("FlightTimer", FT)
 for k in pairs(french) do assert(type(FT.L[k]) == "string", k) end
+local english = FT.L
+locale = "deDE"; assert(loadfile("Localization.lua"))("FlightTimer", FT)
+for k in pairs(english) do
+    assert(type(FT.L[k]) == "string", k)
+    local function placeholders(text)
+        local result = {}
+        for spec in text:gmatch("%%[%d%.]*[sdf]") do result[#result + 1] = spec end
+        return table.concat(result, ",")
+    end
+    assert(placeholders(FT.L[k]) == placeholders(english[k]), k)
+end
+assert(FT.L.READY == "Bereit" and FT.L.TEST_STOP == "Das Wegekreuz")
+assert(FT.L.FLIGHT_DONE == "Flug beendet – Dauer nicht gespeichert")
+locale = "esES"; assert(loadfile("Localization.lua"))("FlightTimer", FT)
+for k, value in pairs(english) do assert(FT.L[k] == value, k) end
 print("PASS: sound, Classic priority, learning, resets, demo, reload, early landing, idle UI, translations")

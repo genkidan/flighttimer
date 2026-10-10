@@ -1,13 +1,18 @@
-FlightTimer Forever 2.0.2
+FlightTimer Forever 2.0.3
 
-2.0.2: Corrects the TOC interface to 16001 for the WoW Forever 1.60.1 client.
+2.0.3: Separates learned timings by build, faction, locale, X/Y coordinates
+and ordered stops. Keeps the Classic source visible throughout the countdown.
+Handles explicit early-landing refusal. Interface remains 16001.
 
 Flight timer with bundled Classic timings and learning for new Forever routes.
 
 Features
 - Detects flights selected at a flight master.
 - Bundled Classic timings always take priority over older personal measurements.
-- Records completed new routes and averages subsequent measurements.
+- Records completed new routes with fully identified stops and averages
+  subsequent measurements of that same path and client context.
+- Preserves old personal measurements for inspection, but does not reuse them
+  during flights because their faction, build and path cannot be verified.
 - Shows remaining time, estimated arrival and a movable progress bar.
 - Requests early landing on multi-hop routes. The next stop is an estimate;
   when its timing is unknown, the addon displays "next flight point".
@@ -35,3 +40,6 @@ FlightData.lua credits the original Classic timing database sources.
 
 Validation: run lua tests/regression.lua from the addon directory.
 Client events, flight durations and actual landing behavior require in-game tests.
+Classic identifiers still use the original X-only hashes. Their correspondence
+and durations on Forever have not been certified. Existing Classic timings are
+preserved; missing route-count or stop coordinates disable personal learning.

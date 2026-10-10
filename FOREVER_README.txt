@@ -1,6 +1,8 @@
-FlightTimer Forever 2.0.2
+FlightTimer Forever 2.0.3
 
-2.0.2 : Corrige l'interface du TOC à 16001 pour le client WoW Forever 1.60.1.
+2.0.3 : Sépare les mesures par build, faction, langue, coordonnées X/Y et
+succession des escales. Conserve le libellé Base Classic pendant le compte à
+rebours et gère le refus explicite d'arrêt anticipé. Interface : 16001.
 
 OBJECTIF
 - Conserver les temps Classic de FlightData.lua : ils sont prioritaires sur
@@ -13,6 +15,9 @@ Un vol complet absent de la base Classic est enregistré dans
 FlightTimerDB.forever.newRoutes puis mis en cache dans FlightTimerDB.routes.
 Les vols complets suivants améliorent sa moyenne.
 Les démonstrations et vols sans points identifiés ne sont pas appris.
+Le nombre d'escales et leurs coordonnées doivent être intégralement identifiés.
+Chaque itinéraire et contexte client possède sa propre moyenne. Les anciennes
+mesures restent conservées mais ne servent plus d'estimation pendant les vols.
 
 ARRET ANTICIPE
 L'escale affichée est une estimation basée sur les temps connus.
@@ -42,3 +47,5 @@ Clic droit : choisir et pré-écouter l'une des cinq alertes.
 TESTS
 Depuis le dossier de l'addon : lua tests/regression.lua
 Les événements et atterrissages réels restent à valider dans le jeu.
+Les clés Classic restent fondées sur X uniquement pour conserver la base
+historique. Leur correspondance et les durées Forever ne sont pas certifiées.

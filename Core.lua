@@ -150,8 +150,26 @@ local function BuildPendingTaxi(destIndex)
     }
 end
 
+-- Personal measurements are specific to the client, faction, locale and path.
+-- Both coordinates are retained; Classic's historical X hashes stay separate.
+local function RouteContext(origin, stops, count)
+    if not origin or not origin.x or not origin.y or not count or #stops ~= count then return nil end
+    local build = GetBuildInfo and select(2, GetBuildInfo()) or "unknown"
+    local parts = { tostring(build), UnitFactionGroup("player") or "unknown", GetLocale() }
+    local function append(node)
+        if not node or not node.x or not node.y then return false end
+        parts[#parts + 1] = string.format("%.8f,%.8f", node.x, node.y)
+        return true
+    end
+    append(origin)
+    for _, stop in ipairs(stops) do
+        if not append(stop) then return nil end
+    end
+    return table.concat(parts, ":")
+end
 
-local function BuildRouteTimeline(fromName, fromHash, routeStops, fullEstimate)
+
+local function BuildRouteTimeline(fromName, fromHash, routeStops, fullEstimate, origin)
     if not routeStops or #routeStops == 0 then return nil end
 
     local timeline = {}
@@ -159,6 +177,7 @@ local function BuildRouteTimeline(fromName, fromHash, routeStops, fullEstimate)
     local previousHash = fromHash
     local segmentCumulative = 0
     local lastCumulative = 0
+    local prefix = {}
 
     for index, stop in ipairs(routeStops) do
         if not stop or not stop.name then return nil end
@@ -167,8 +186,12 @@ local function BuildRouteTimeline(fromName, fromHash, routeStops, fullEstimate)
         -- this exact stop. This is much more reliable than adding individual
         -- hop durations, because WoW's bundled taxi data can contain slightly
         -- different timings depending on the complete selected route.
-        local cumulative = select(1, FT:GetRouteEstimate(fromName, stop.name, fromHash, stop.hash))
-        local segment = select(1, FT:GetRouteEstimate(previousName, stop.name, previousHash, stop.hash))
+        prefix[#prefix + 1] = stop
+        local context = RouteContext(origin, prefix, #prefix)
+        local previous = index == 1 and origin or routeStops[index - 1]
+        local segmentContext = RouteContext(previous, { stop }, 1)
+        local cumulative = select(1, FT:GetRouteEstimate(fromName, stop.name, fromHash, stop.hash, context or "unidentified"))
+        local segment = select(1, FT:GetRouteEstimate(previousName, stop.name, previousHash, stop.hash, segmentContext or "unidentified"))
 
         if segment and segment > 0 then
             segmentCumulative = segmentCumulative + segment
@@ -284,7 +307,7 @@ local function RecalculateForEarlyLanding(flight)
         return
     end
 
-    local estimate, learned, _, source = FT:GetRouteEstimate(flight.from, stopName, flight.fromHash, stopHash)
+    local estimate, learned, _, source = FT:GetRouteEstimate(flight.from, stopName, flight.fromHash, stopHash, "unidentified")
     -- Prefer the route timeline because it represents the exact path currently
     -- being flown, whereas a normal flight from the origin to this stop can
     -- occasionally use a different connection.
@@ -328,8 +351,8 @@ function FT:RequestEarlyLanding()
         return
     end
 
-    local ok = pcall(TaxiRequestEarlyLanding)
-    if ok then
+    local ok, result = pcall(TaxiRequestEarlyLanding)
+    if ok and result ~= false then
         flight.earlyLandingRequested = true
         RecalculateForEarlyLanding(flight)
         if self.SetCancelState then
@@ -355,10 +378,12 @@ local function StartFlight()
     fromName = fromName or (taxiSnapshot and taxiSnapshot.currentName) or GetZoneText() or "?"
     toName = toName or "Destination"
 
-    local estimate, learned, _, source = FT:GetRouteEstimate(fromName, toName, fromHash, toHash)
-
     local routeStops = pendingTaxi and pendingTaxi.routeStops or nil
-    local routeTimeline = BuildRouteTimeline(fromName, fromHash, routeStops, estimate)
+    local origin = taxiSnapshot and taxiSnapshot.nodes[taxiSnapshot.currentIndex or -1]
+    local routeCount = pendingTaxi and pendingTaxi.routeCount
+    local context = routeStops and RouteContext(origin, routeStops, routeCount)
+    local estimate, learned, _, source = FT:GetRouteEstimate(fromName, toName, fromHash, toHash, context or "unidentified")
+    local routeTimeline = BuildRouteTimeline(fromName, fromHash, routeStops, estimate, origin)
 
     FT.activeFlight = {
         from = fromName,
@@ -371,6 +396,8 @@ local function StartFlight()
         fromHash = fromHash,
         toHash = toHash,
         source = source,
+        context = context,
+        identityVersion = 2,
         routeStops = routeStops,
         routeTimeline = routeTimeline,
         routeCount = pendingTaxi and pendingTaxi.routeCount or nil,
@@ -398,7 +425,12 @@ local function EndFlight()
             -- Never associate this duration with a predicted intermediate stop.
             status = L.EARLY_NOT_SAVED
         elseif not flight.earlyLandingRequested then
-            local saved, why = FT:RecordForeverNewRoute(flight.from, flight.to, duration, flight.distance, flight.fromHash, flight.toHash, flight.routeCount)
+            local saved, why
+            if flight.context then
+                saved, why = FT:RecordForeverNewRoute(flight.from, flight.to, duration, flight.distance, flight.fromHash, flight.toHash, flight.routeCount, flight.context, flight.routeStops)
+            elseif FT:IsBundledRoute(flight.fromHash, flight.toHash) then
+                why = "existing"
+            end
             if saved then
                 status = L.ROUTE_SAVED
                 Print(string.format(L.NEW_ROUTE, flight.from, flight.to, duration))

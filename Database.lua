@@ -41,23 +41,24 @@ function FT:InitDB()
     self.db = FlightTimerDB
 end
 
-function FT:RouteKey(fromName, toName)
-    return tostring(fromName or "?") .. "\031" .. tostring(toName or "?")
+function FT:RouteKey(fromName, toName, context)
+    local key = tostring(fromName or "?") .. "\031" .. tostring(toName or "?")
+    return context and key .. "\031v2:" .. context or key
 end
 
-function FT:GetRoute(fromName, toName)
+function FT:GetRoute(fromName, toName, context)
     if not self.db then return nil end
-    return self.db.routes[self:RouteKey(fromName, toName)]
+    return self.db.routes[self:RouteKey(fromName, toName, context)]
 end
 
-function FT:GetRouteEstimate(fromName, toName, fromHash, toHash)
+function FT:GetRouteEstimate(fromName, toName, fromHash, toHash, context)
     -- Classic timings always take precedence, including over legacy measurements.
     local builtIn = self:GetBuiltInFlightTime(fromHash, toHash)
     if builtIn and builtIn > 0 then
         return builtIn, true, 0, "database"
     end
 
-    local route = self:GetRoute(fromName, toName)
+    local route = self:GetRoute(fromName, toName, context)
     if route and route.average and route.average > 0 then
         return route.average, true, route.samples or 1, "personal"
     end
@@ -105,14 +106,14 @@ end
 
 -- Forever learning mode: ONLY records a route that does not exist in the
 -- bundled Classic database. Existing Classic routes are never re-timed.
-function FT:RecordForeverNewRoute(fromName, toName, duration, distance, fromHash, toHash, routeCount)
+function FT:RecordForeverNewRoute(fromName, toName, duration, distance, fromHash, toHash, routeCount, context, routeStops)
     if not self.db or not fromName or not toName or not duration or duration < 3 then return false, "invalid" end
     if not fromHash or not toHash then return false, "unidentified" end
     if self:IsBundledRoute(fromHash, toHash) then
         return false, "existing"
     end
 
-    local key = self:RouteKey(fromName, toName)
+    local key = self:RouteKey(fromName, toName, context)
     local store = self.db.forever and self.db.forever.newRoutes
     if not store then return false, "nodatabase" end
     local route = store[key] or {
@@ -127,6 +128,8 @@ function FT:RecordForeverNewRoute(fromName, toName, duration, distance, fromHash
     route.updated = time()
     route.distance = distance or route.distance
     route.routeCount = routeCount or route.routeCount
+    route.context = context
+    route.routeStops = routeStops or route.routeStops
     store[key] = route
 
     -- Mirror only NEW Forever routes into the normal route cache so the UI can
