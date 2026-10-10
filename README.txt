@@ -1,4 +1,6 @@
-FlightTimer Forever 2.0.3
+FlightTimer Forever 2.0.4
+
+2.0.4: Adds German localization by ExNex and English release documentation.
 
 2.0.3: Separates learned timings by build, faction, locale, X/Y coordinates
 and ordered stops. Keeps the Classic source visible throughout the countdown.
@@ -22,7 +24,8 @@ Features
 - Restores flight tracking after /reload while still flying, with approximately
   one-second clock precision. Flights completed while tracking was unavailable
   are not learned.
-- Supports French and English messages.
+- Supports French, English and German messages; other client languages use English.
+- Thanks to ExNex for providing the German localization code on CurseForge.
 
 Commands (both /ft and /flytimer)
 test          Runs a 78-second demo without saving data; unavailable in flight.

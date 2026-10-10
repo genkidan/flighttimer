@@ -101,7 +101,7 @@ local extra = locale == "frFR" and {
     ROUTE_COUNT = "%d trajet(s) Forever appris.",
     ROUTE_ENTRY = "%s -> %s : %.1fs (%d mesures)",
     FOREVER_RESET = "Nouveaux trajets Forever effacés. Base Classic conservée.",
-    LOADED = "v2.0.3 Forever chargé — apprentissage des nouveaux trajets uniquement.",
+    LOADED = "v2.0.4 Forever chargé — apprentissage des nouveaux trajets uniquement.",
     HELP = "Commandes : /ft lock, unlock, reset, historyreset, test, hide, show, forever, newroutes, foreverreset",
 } or {
     MOVE_TOOLTIP = "Hold the left mouse button to move",
@@ -118,7 +118,7 @@ local extra = locale == "frFR" and {
     ROUTE_COUNT = "%d learned Forever route(s).",
     ROUTE_ENTRY = "%s -> %s: %.1fs (%d samples)",
     FOREVER_RESET = "Learned Forever routes cleared. Classic database preserved.",
-    LOADED = "v2.0.3 Forever loaded — learning new routes only.",
+    LOADED = "v2.0.4 Forever loaded — learning new routes only.",
     HELP = "Commands: /ft lock, unlock, reset, historyreset, test, hide, show, forever, newroutes, foreverreset",
 }
 for key, value in pairs(extra) do L[key] = value end
@@ -176,7 +176,7 @@ if locale == "deDE" then
  ROUTE_COUNT = "%d erfasste Forever-Flugroute(n).",
  ROUTE_ENTRY = "%s -> %s: %.1f s (%d Messungen)",
  FOREVER_RESET = "Erfasste Forever-Flugrouten gelöscht. Classic-Datenbank bleibt erhalten.",
- LOADED = "v2.0.3 Forever geladen – nur neue Flugrouten werden erfasst.",
+ LOADED = "v2.0.4 Forever geladen – nur neue Flugrouten werden erfasst.",
  }
  for key, value in pairs(de) do L[key] = value end
 end

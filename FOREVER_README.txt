@@ -1,51 +1,48 @@
-FlightTimer Forever 2.0.3
+FlightTimer Forever 2.0.4
 
-2.0.3 : Sépare les mesures par build, faction, langue, coordonnées X/Y et
-succession des escales. Conserve le libellé Base Classic pendant le compte à
-rebours et gère le refus explicite d'arrêt anticipé. Interface : 16001.
+2.0.4: Adds German localization by ExNex and English release documentation.
 
-OBJECTIF
-- Conserver les temps Classic de FlightData.lua : ils sont prioritaires sur
-  les anciennes mesures personnelles et ne sont jamais recalculés.
-- Apprendre uniquement les nouveaux couples départ/destination identifiés.
-- Utiliser les points de vol fournis par le jeu.
+2.0.3: Separates learned timings by build, faction, locale, X/Y coordinates
+and ordered stops. Keeps the Classic source visible throughout the countdown.
+Handles explicit early-landing refusal. Interface remains 16001.
 
-APPRENTISSAGE
-Un vol complet absent de la base Classic est enregistré dans
-FlightTimerDB.forever.newRoutes puis mis en cache dans FlightTimerDB.routes.
-Les vols complets suivants améliorent sa moyenne.
-Les démonstrations et vols sans points identifiés ne sont pas appris.
-Le nombre d'escales et leurs coordonnées doivent être intégralement identifiés.
-Chaque itinéraire et contexte client possède sa propre moyenne. Les anciennes
-mesures restent conservées mais ne servent plus d'estimation pendant les vols.
+Flight timer with bundled Classic timings and learning for new Forever routes.
 
-ARRET ANTICIPE
-L'escale affichée est une estimation basée sur les temps connus.
-Une chronologie partielle ne propose plus une escale déjà dépassée : lorsque
-la suivante est inconnue, l'interface indique simplement « prochain fly ».
-Les vols écourtés ne sont pas enregistrés : le point d'arrivée réel n'est pas
-confirmé par le suivi actuel. Cela évite d'apprendre une mauvaise destination.
+Features
+- Detects flights selected at a flight master.
+- Bundled Classic timings always take priority over older personal measurements.
+- Records completed new routes with fully identified stops and averages
+  subsequent measurements of that same path and client context.
+- Preserves old personal measurements for inspection, but does not reuse them
+  during flights because their faction, build and path cannot be verified.
+- Shows remaining time, estimated arrival and a movable progress bar.
+- Requests early landing on multi-hop routes. The next stop is an estimate;
+  when its timing is unknown, the addon displays "next flight point".
+- Early-landed flights are not learned because the actual arrival node is
+  not confirmed. The original route is never overwritten by a shortened flight.
+- Offers five selectable arrival sounds and an alert at 10 seconds.
+- Restores flight tracking after /reload while still flying, with approximately
+  one-second clock precision. Flights completed while tracking was unavailable
+  are not learned.
+- Supports French, English and German messages; other client languages use English.
+- Thanks to ExNex for providing the German localization code on CurseForge.
 
-RECHARGEMENT
-/reload pendant un vol restaure le suivi et le temps écoulé, à environ une
-seconde près. Un vol terminé pendant l'absence de suivi n'est pas enregistré.
-Le réglage /ft show est également restauré.
+Commands (both /ft and /flytimer)
+test          Runs a 78-second demo without saving data; unavailable in flight.
+lock/unlock   Locks or unlocks dragging.
+reset         Restores the default window position.
+show          Keeps the window visible between flights and after reload.
+hide          Hides the idle window; flights still display automatically.
+forever       Lists learned Forever routes (alias: newroutes).
+foreverreset  Deletes learned Forever routes and their cached timings.
+historyreset  Deletes all personal and Forever timings; preserves Classic data.
 
-COMMANDES
-/ft forever ou /ft newroutes : liste des trajets Forever appris.
-/ft foreverreset : efface ces trajets et leurs copies dans le cache.
-/ft historyreset : efface toutes les mesures personnelles et Forever.
-Ces commandes ne modifient jamais la base Classic.
-/ft test : démonstration de 78 secondes sans apprentissage, hors vol uniquement.
-/ft lock, unlock, reset, show, hide : réglages de la fenêtre.
-/flytimer accepte les mêmes commandes que /ft.
+Sound button: left-click toggles sound, right-click opens sound selection.
+SavedVariables: FlightTimerDB (shared between characters).
+FlightData.lua credits the original Classic timing database sources.
 
-SON
-Clic gauche sur Son : activer/désactiver.
-Clic droit : choisir et pré-écouter l'une des cinq alertes.
-
-TESTS
-Depuis le dossier de l'addon : lua tests/regression.lua
-Les événements et atterrissages réels restent à valider dans le jeu.
-Les clés Classic restent fondées sur X uniquement pour conserver la base
-historique. Leur correspondance et les durées Forever ne sont pas certifiées.
+Validation: run lua tests/regression.lua from the addon directory.
+Client events, flight durations and actual landing behavior require in-game tests.
+Classic identifiers still use the original X-only hashes. Their correspondence
+and durations on Forever have not been certified. Existing Classic timings are
+preserved; missing route-count or stop coordinates disable personal learning.
